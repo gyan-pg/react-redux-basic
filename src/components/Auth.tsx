@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { auth, provider, storage } from '../firebase';
 import styles from './Auth.module.css';
+import { useDispatch } from 'react-redux';
+import { updateUserProfile } from '../features/userSlice';
+import { auth, provider, storage } from '../firebase';
 
 import {
   Avatar,
@@ -57,16 +58,54 @@ const useStyles = makeStyles((theme) => ({
 
 const Auth:React.FC = () => {
   const classes = useStyles();
+  const dispatch = useDispatch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [avatarImage, setAvatarImage] = useState<File | null>(null);
   const [isLogin, setIsLogin] = useState(true);
+
+  const onChangeImageHandler = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files![0]) {// !はNon-null assertion operatorといい、nullではないことをコンパイラに通知する。付けないとエラーになる。
+      setAvatarImage(e.target.files![0]);
+      e.target.value = "";// 同じファイルを連続して選択すると反応しなくなる。初期化をすることで、onChangeが反応するようにする。
+    }
+  };
 
   const signInEmail = async () => {
     await auth.signInWithEmailAndPassword(email, password);
   };
 
   const signUpEmail = async () => {
-    await auth.createUserWithEmailAndPassword(email, password);
+    const authUser = await auth.createUserWithEmailAndPassword(email, password);
+    let url = "";
+    // firebase上に画像をアップロードする。
+    if (avatarImage) {
+      // ランダムなファイル名を作成する。別関数で定義で良いかも。
+      const S = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+      const N = 16;
+      const randomChar = Array.from(crypto.getRandomValues(new Uint32Array(N)))
+        .map((n) => S[n % S.length])
+        .join("");
+      const fileName = `${randomChar}_${avatarImage.name}`;
+
+      await storage.ref(`avatars/${fileName}`).put(avatarImage);
+      url = await storage.ref('abatars').child(fileName).getDownloadURL();// 保存先のurlが返却される。
+    }
+    /**
+     * obj.val?.prop : オプショナルチェーンという書き方
+     * https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Optional_chaining
+     */
+    await authUser.user?.updateProfile({
+      displayName: username,
+      photoURL: url,
+    });
+    dispatch(
+      updateUserProfile({
+        displayName: username,
+        photoUrl: url,
+      })
+    );
   };
 
   const signInGoogle = async () => {
@@ -144,7 +183,7 @@ const Auth:React.FC = () => {
               <Grid item xs>
                 <span className={styles.login_reset}>Forgot Password?</span>
               </Grid>
-              <Grid item xs>
+              <Grid item>
                 <span
                   className={styles.login_toggleMode}
                   onClick={() => setIsLogin(!isLogin)}
