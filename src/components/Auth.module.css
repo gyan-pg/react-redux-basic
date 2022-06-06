@@ -20,3 +20,6 @@
   cursor: pointer;
   color: whitesmoke;
 }
+.text_center {
+  text-align: center;
+}

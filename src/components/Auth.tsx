@@ -24,6 +24,16 @@ import EmailIcon from "@material-ui/icons/Email";
 import LockOutlinedIcon from "@material-ui/icons/LockOutlined";
 import AccountCircleIcon from "@material-ui/icons/AccountCircle";
 
+function getModalStyle() {
+  const top = 50;
+  const left = 50;
+
+  return {
+    top: `${top}%`,
+    left: `${left}%`,
+    transform: `translate(-${top}%, -${left}%)`,
+  };
+}
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -54,6 +64,15 @@ const useStyles = makeStyles((theme) => ({
   submit: {
     margin: theme.spacing(3, 0, 2),
   },
+  modal: {
+    outline: "none",
+    position: "absolute",
+    width: 400,
+    borderRadius: 10,
+    backgroundColor: "white",
+    boxShadow: theme.shadows[5],
+    padding: theme.spacing(10),
+  },
 }));
 
 const Auth:React.FC = () => {
@@ -64,6 +83,21 @@ const Auth:React.FC = () => {
   const [username, setUsername] = useState("");
   const [avatarImage, setAvatarImage] = useState<File | null>(null);
   const [isLogin, setIsLogin] = useState(true);
+  const [openModal, setOpenModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+
+  const sendResetEmail = async (e: React.MouseEvent<HTMLElement>) => {
+    await auth
+      .sendPasswordResetEmail(resetEmail)
+      .then(() => {
+        setOpenModal(false);
+        setResetEmail("");
+      })
+      .catch((error) => {
+        alert(error.message);
+        setResetEmail("");
+      });
+  };
 
   const onChangeImageHandler = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files![0]) {// !はNon-null assertion operatorといい、nullではないことをコンパイラに通知する。付けないとエラーになる。
@@ -90,12 +124,13 @@ const Auth:React.FC = () => {
       const fileName = `${randomChar}_${avatarImage.name}`;
 
       await storage.ref(`avatars/${fileName}`).put(avatarImage);
-      url = await storage.ref('abatars').child(fileName).getDownloadURL();// 保存先のurlが返却される。
+      url = await storage.ref('avatars').child(fileName).getDownloadURL();// 保存先のurlが返却される。
     }
     /**
      * obj.val?.prop : オプショナルチェーンという書き方
      * https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Optional_chaining
      */
+    // ここでユーザープロフィールのアップデートを行なっている。
     await authUser.user?.updateProfile({
       displayName: username,
       photoURL: url,
@@ -125,6 +160,45 @@ const Auth:React.FC = () => {
             {isLogin ? "Login" : "Register"}
           </Typography>
           <form className={classes.form} noValidate>
+
+          {!isLogin && (
+            <>
+              <TextField
+                variant="outlined"
+                margin="normal"
+                required
+                fullWidth
+                id="username"
+                label="Username"
+                name="username"
+                autoComplete="username"
+                autoFocus
+                value={username}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setUsername(e.target.value) }}
+              />
+              <Box className={styles.text_center}>
+                <IconButton>
+                  <label>
+                    <AccountCircleIcon
+                      fontSize='large'
+                      className={
+                        avatarImage
+                          ? styles.login_addIconLoaded
+                          : styles.login_addIcon
+                      }
+                    />
+                    <input
+                      className={styles.login_hiddenIcon}
+                      type="file"
+                      onChange={onChangeImageHandler}
+                    />
+                  </label>
+                </IconButton>
+              </Box>
+            </>
+          )}
+
+
             <TextField
               variant="outlined"
               margin="normal"
@@ -153,6 +227,11 @@ const Auth:React.FC = () => {
             />
 
             <Button
+              disabled={
+                isLogin
+                  ? !email || password.length < 6
+                  : !username || !email || password.length < 6 || !avatarImage
+              }
               fullWidth
               variant="contained"
               color="primary"
@@ -181,7 +260,12 @@ const Auth:React.FC = () => {
 
             <Grid container>
               <Grid item xs>
-                <span className={styles.login_reset}>Forgot Password?</span>
+                <span
+                  className={styles.login_reset}
+                  onClick={() => setOpenModal(true)}
+                >
+                  Forgot Password?
+                </span>
               </Grid>
               <Grid item>
                 <span
@@ -197,6 +281,7 @@ const Auth:React.FC = () => {
               fullWidth
               variant="contained"
               color="primary"
+              startIcon={<CameraIcon />}
               className={classes.submit}
               onClick={signInGoogle}
             >
@@ -204,6 +289,29 @@ const Auth:React.FC = () => {
             </Button>
 
           </form>
+
+          <Modal open={openModal} onClose={() => setOpenModal(false)}>
+            <div style={getModalStyle()} className={classes.modal}>
+              <div className={styles.login_modal}>
+                <TextField
+                  InputLabelProps={{ 
+                    shrink: true,
+                  }}
+                  type="email"
+                  name="email"
+                  label="Reset E-mail"
+                  value={resetEmail}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    setResetEmail(e.target.value);
+                  }}
+                />
+                <IconButton onClick={sendResetEmail}>
+                  <SendIcon />
+                </IconButton>
+              </div>
+            </div>
+          </Modal>
+
         </div>
       </Grid>
     </Grid>
